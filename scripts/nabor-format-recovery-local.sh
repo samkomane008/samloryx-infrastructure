@@ -55,7 +55,7 @@ fi
 
 # Attribution belongs to the owner's logged-in GitHub profile, not an agent.
 git config user.name "Samuel Komane"
-git config user.email "159257666+samkomane008@users.noreply.github.com"
+git config user.email "sam.komane8@gmail.com"
 echo 'Committing tracked formatting-only changes...'
 git commit -m "style: apply Prettier to restore Nabor quality gate"
 git push -u origin "$BRANCH"
