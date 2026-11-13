@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Install pinned, multi-user runner mutex on the CI VM. Default --check is read-only.
 set -Eeuo pipefail
-MODE="$1"
+MODE=--check
+if (( $# > 0 )); then MODE="$1"; fi
 [[ "$MODE" == --check || "$MODE" == --apply ]] || { echo "Usage: $0 --check|--apply"; exit 2; }
 [[ "$(id -u)" == 0 ]] || { echo "Must run as root inside CI VM" >&2; exit 1; }
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
