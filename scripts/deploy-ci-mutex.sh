@@ -21,12 +21,11 @@ for f in scripts/install-ci-mutex-vm.sh vendor/actions-runner-mutex/job-lock.sh 
   bash -n "$ROOT/$f" || { echo "STOP: invalid shell script: $f" >&2; exit 1; }
 done
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# Multipass installed via Snap cannot access the host's private /tmp.
+# Stream the archive through stdin; no host staging path is required.
 ARCHIVE="samloryx-ci-mutex-$$.tar.gz"
-tar -C "$ROOT" -czf "$TMP/$ARCHIVE" \
-  scripts/install-ci-mutex-vm.sh vendor/actions-runner-mutex
-multipass transfer "$TMP/$ARCHIVE" "$VM:/home/ubuntu/$ARCHIVE"
+tar -C "$ROOT" -czf - scripts/install-ci-mutex-vm.sh vendor/actions-runner-mutex \
+  | multipass transfer - "$VM:/home/ubuntu/$ARCHIVE"
 multipass exec "$VM" -- sudo install -d -m 0700 /root/samloryx-ci-mutex-stage
 multipass exec "$VM" -- sudo tar -xzf "/home/ubuntu/$ARCHIVE" -C /root/samloryx-ci-mutex-stage
 multipass exec "$VM" -- rm -f "/home/ubuntu/$ARCHIVE"
