@@ -54,7 +54,22 @@ while IFS=$'\t' read -r run_id branch sha workflow; do
       echo '  SKIP: exact head now belongs to an open PR'
       continue
     fi
-    gh run cancel "$run_id" --repo "$REPO"
+    # A queued job can finish/cancel between the last status read and POST.
+    # Treat that expected race as a skip; never hide an unrelated API error.
+    if output="$(gh run cancel "$run_id" --repo "$REPO" 2>&1)"; then
+      printf '%s\n' "$output"
+    else
+      final_status="$(gh api "repos/$REPO/actions/runs/$run_id" --jq '.status')" || {
+        echo "  ERROR: cancellation failed; could not confirm run status" >&2
+        exit 1
+      }
+      if [[ "$final_status" == completed ]]; then
+        echo "  SKIP: run already completed before cancellation could be submitted"
+      else
+        printf '  ERROR: unable to cancel run in status %s: %s\n' "$final_status" "$output" >&2
+        exit 1
+      fi
+    fi
   fi
 done < "$tmp/stale.tsv"
 if [[ "$MODE" == --dry-run ]]; then
