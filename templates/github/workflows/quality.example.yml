@@ -1,0 +1,20 @@
+# TEMPLATE ONLY. Pilot on a repository after runner registration is verified.
+name: verify
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    runs-on: ${{ fromJSON(vars.CI_RUNNERS || '["self-hosted","Linux","X64","samloryx-ci"]') }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4 # Pin to an audited commit SHA before adoption
+      - name: Repository checks
+        run: |
+          test -f scripts/check.sh || { echo "Add a repository-specific scripts/check.sh"; exit 1; }
+          bash scripts/check.sh
