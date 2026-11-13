@@ -34,6 +34,11 @@ git diff --check
 
 echo 'Changed tracked files:'
 git diff --name-only
+changed_count="$(git diff --name-only | wc -l)"
+if (( changed_count > 100 )); then
+  echo "STOP: $changed_count tracked files changed; review this broad formatting diff before pushing." >&2
+  exit 3
+fi
 if git diff --quiet; then
   echo 'No formatting changes needed on current main. No PR created.'
   exit 0
