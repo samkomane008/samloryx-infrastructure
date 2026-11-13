@@ -13,6 +13,14 @@ command -v tar >/dev/null || { echo 'tar not installed' >&2; exit 1; }
 [[ -s "$ROOT/scripts/install-ci-mutex-vm.sh" ]] || { echo 'Missing VM installer' >&2; exit 1; }
 [[ -s "$ROOT/vendor/actions-runner-mutex/job-lock.sh" ]] || { echo 'Missing pinned vendor code' >&2; exit 1; }
 
+# Validate bundled shell syntax on the workstation before staging privileged code.
+for f in scripts/install-ci-mutex-vm.sh vendor/actions-runner-mutex/job-lock.sh \
+  vendor/actions-runner-mutex/hooks/job-started.sh \
+  vendor/actions-runner-mutex/hooks/job-completed.sh \
+  vendor/actions-runner-mutex/test/run-tests.sh; do
+  bash -n "$ROOT/$f" || { echo "STOP: invalid shell script: $f" >&2; exit 1; }
+done
+
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 ARCHIVE="samloryx-ci-mutex-$$.tar.gz"
