@@ -59,6 +59,12 @@ while IFS=$'\t' read -r run_id branch sha workflow; do
     if output="$(gh run cancel "$run_id" --repo "$REPO" 2>&1)"; then
       printf '%s\n' "$output"
     else
+      # GitHub's cancel endpoint can already see "completed" while the read
+      # endpoint briefly still reports "queued". Trust this specific response.
+      if [[ "$output" == *"Cannot cancel a workflow run that is completed"* ]]; then
+        echo '  SKIP: cancellation endpoint reports already completed (status read may lag)'
+        continue
+      fi
       final_status="$(gh api "repos/$REPO/actions/runs/$run_id" --jq '.status')" || {
         echo "  ERROR: cancellation failed; could not confirm run status" >&2
         exit 1
