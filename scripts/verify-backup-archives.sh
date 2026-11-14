@@ -2,9 +2,13 @@
 # Read-only: prove the newest Nabor and Samloryx backup archives can be listed
 # by pg_restore, and report table counts. Prints no table names, data or env
 # values. Does not connect to a database or write to the remote host.
+#
+# BACKUP_HOST is intentionally unset by default: this repository is public and
+# must not carry a real production host address. Supply it from your local
+# environment, never from a committed file.
 set -Eeuo pipefail
 
-HOST="${BACKUP_HOST:-deploy@2.29.117.78}"
+HOST="${BACKUP_HOST:?Set BACKUP_HOST to the SSH target of the backup host (never commit it)}"
 SAMLORYX_DIR="${SAMLORYX_BACKUP_DIR:-/opt/samloryx/app/ops/backup/out}"
 NABOR_DIR="${NABOR_BACKUP_DIR:-/opt/nabor/backups}"
 SAMLORYX_CONTAINER="${SAMLORYX_DB_CONTAINER:-samloryx-prod-db-1}"
