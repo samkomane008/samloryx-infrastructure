@@ -41,7 +41,8 @@ Last verified: **14 November 2026**.
 
 | Requirement | Status | Evidence | Remaining work |
 |---|---|---|---|
-| Deployment identity separated from the PR runner | BLOCKED | The CI VM also accepts PR jobs, so a production SSH key must not be installed there; CD remains default-off | Owner supplies an isolated deploy host or runner |
+| Continuous deployment from `main` | PARTIAL | **Samloryx: VERIFIED 14 Nov 20:16Z.** Server-side pull deploy (no production key on the PR runner) installed as a five-minute cron; `a79ddb9f` deployed with the full backup guard, 14/14 smoke checks and public release match; next cycle observed as a silent no-op. **Nabor: OPEN** — guarded preview pipeline exists but stays default-off because no dedicated always-on builder exists | Nabor needs an isolated builder host or runner |
+| Deployment identity separated from the PR runner | PARTIAL | Samloryx deploys by the host pulling `main` and using its own SSH identity, so no production key is installed on the CI VM; Nabor's deploy key would still need a builder identity | Nabor builder identity; keep production keys off PR runners |
 | Deployment artifacts pinned | PARTIAL | Local Nabor preview images carry commit-SHA tags (`cfb39cf`, `c8e23ec`); registry digest pinning was not verified | Pin by digest before any production promotion |
 | Smoke test | PARTIAL | `deploy/smoke.sh` exists; production web, api and app returned 200 on 14 Nov | Run smoke as a recorded release step, not by hand only |
 | Rollback drill | OPEN | No rollback has been executed or recorded | Drill on an isolated host with a disposable release |
@@ -51,7 +52,7 @@ Last verified: **14 November 2026**.
 ## Open gates, in dependency order
 
 1. **Branch protection** — unavailable on the current GitHub plan; guarded merge stays procedural.
-2. **Isolated deploy executor** — required before either product's CD can be enabled.
+2. **Nabor dedicated builder** — Samloryx now deploys from the host by pulling `main`, so it needs no separate executor. Nabor's guarded preview pipeline still needs an always-on builder that is neither the live Nabor host nor the shared PR runner.
 3. **Nabor offsite backup** — no timer, unit or cron installed and no R2 credentials or age
    identity; the offsite restore path is therefore untested.
 4. **Rollback drill** — nothing has been rolled back under test.
