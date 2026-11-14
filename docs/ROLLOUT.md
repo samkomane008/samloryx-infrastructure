@@ -1,24 +1,64 @@
-# Rollout checklist
+# Rollout acceptance matrix
+
+The single record of what is actually proven for the three repositories, with the evidence and
+the remaining work. Update it only with observed results. An item is **VERIFIED** only when the
+evidence column names a run, a restore or a live read-only check from a specific date.
+
+Legend: **VERIFIED** — proven by recorded evidence · **PARTIAL** — some evidence, a named gap
+remains · **OPEN** — not started or no evidence · **BLOCKED** — cannot proceed without an owner
+decision or a paid feature.
+
+Last verified: **14 November 2026**.
 
 ## Stage 0 — Baseline
-- [ ] Collect repository inventories privately and review workflow triggers, runner labels, and secret access.
-- [ ] Inspect backup, recovery, production deployment, and current branch protections.
-- [ ] Avoid production changes until a repeatable test and rollback are established.
+
+| Requirement | Status | Evidence | Remaining work |
+|---|---|---|---|
+| Review workflow triggers, runner labels and secret access | VERIFIED | All workflows in Nabor, Samloryx OS and this repository reviewed during the 14 Nov sessions; runner labels are `self-hosted,linux,x64,<repo>-ci` | Re-review when a workflow is added |
+| Inspect backups, recovery, production deployment and branch protections | VERIFIED | Samloryx nightly + hourly backup cron and dumps observed; Nabor local pre-deploy dumps only; CD default-off; no branch protection on any of the three repositories | Re-check before each release |
+| No production change before a repeatable test and rollback exist | VERIFIED | No production service, database, runner or deployment switch was changed in the 14 Nov sessions | Keep the rule |
 
 ## Stage 1 — Runner recovery
-- [ ] Confirm the `samloryx-ci` VM is reachable.
-- [ ] Confirm Actions listener health and runner registration per repository.
-- [ ] Inspect the prior serial gate installation; do not blindly rerun its installer.
-- [ ] Execute one harmless, secret-free canary workflow.
-- [ ] Verify concurrency, memory, and disk controls.
+
+| Requirement | Status | Evidence | Remaining work |
+|---|---|---|---|
+| `samloryx-ci` VM reachable | VERIFIED | Read-only `multipass exec` and `deploy-ci-mutex.sh --check` succeeded on 14 Nov | None |
+| Listener health and registration per repository | VERIFIED | `deploy-ci-mutex.sh --check` reported six active units: nabor, personal-career, samloryx-consultancy-platform, samloryx-engineering-website, samloryx-os, samloryx-workspace | Re-run the check after any host change |
+| Serial gate inspected, not blindly reinstalled | VERIFIED | Installer now fails closed (PR #15, `971b8fcb`); `--check` executed read-only | Apply only in a quiet window if ever needed |
+| Harmless canary workflow | OPEN | No dedicated canary workflow exists | Add one secret-free canary per runner |
+| Concurrency, memory and disk controls | PARTIAL | One-slot mutex enforced; the 13 Nov global OOM incident is documented; VM has 5.9 GiB RAM and 52% disk use | Add memory/queue alerting; re-measure after each incident |
 
 ## Stage 2 — Standard CI
-- [ ] Pilot a non-deploying workflow.
-- [ ] Run build, tests, and free vulnerability scanning.
-- [ ] Enforce required checks where available; otherwise document a fail-closed manual release gate.
-- [ ] Apply a tested workflow policy to each repository with PR review.
+
+| Requirement | Status | Evidence | Remaining work |
+|---|---|---|---|
+| Non-deploying workflow pilot | VERIFIED | Nabor `nabor-quality` and `sonarcloud`; Samloryx `ci-gate` and `security-scan` | None |
+| Build, test and vulnerability gates | PARTIAL | Nabor #236 passed all three exact-head gates and merged (`2ce2fa20`); Samloryx #391 runs the full Java suite and is not yet green | Merge #391 only when every required check passes |
+| Required checks enforced by GitHub | BLOCKED | GitHub Free provides no branch protection on any of the three repositories | Owner decision: paid plan, or keep the procedural `guarded-merge.sh` gate |
+| Workflow policy applied per repository with review | PARTIAL | Nabor merged; Samloryx #392 is staged and default-off | Revalidate #392 on post-#391 main |
 
 ## Stage 3 — Delivery hardening
-- [ ] Separate production deployment identities and host from the PR runner.
-- [ ] Pin deployment artifacts by digest or immutable version.
-- [ ] Smoke test, roll back, verify backup restore, and add alerts.
+
+| Requirement | Status | Evidence | Remaining work |
+|---|---|---|---|
+| Deployment identity separated from the PR runner | BLOCKED | The CI VM also accepts PR jobs, so a production SSH key must not be installed there; CD remains default-off | Owner supplies an isolated deploy host or runner |
+| Deployment artifacts pinned | PARTIAL | Local Nabor preview images carry commit-SHA tags (`cfb39cf`, `c8e23ec`); registry digest pinning was not verified | Pin by digest before any production promotion |
+| Smoke test | PARTIAL | `deploy/smoke.sh` exists; production web, api and app returned 200 on 14 Nov | Run smoke as a recorded release step, not by hand only |
+| Rollback drill | OPEN | No rollback has been executed or recorded | Drill on an isolated host with a disposable release |
+| Backup restore | VERIFIED | Isolated restore on 14 Nov: Samloryx 160/160 tables (`postgres:18`), Nabor 47/47 public tables (`postgis:16-3.6`), both `pg_restore` exit 0; see `docs/BACKUP_EVIDENCE.md` | Repeat quarterly and after schema changes |
+| Alerts | PARTIAL | Samloryx watchdog runs every five minutes; backup freshness warns after 26 h | Nabor backup alert, CI queue alert and restore-age alert |
+
+## Open gates, in dependency order
+
+1. **Branch protection** — unavailable on the current GitHub plan; guarded merge stays procedural.
+2. **Isolated deploy executor** — required before either product's CD can be enabled.
+3. **Nabor offsite backup** — no timer, unit or cron installed and no R2 credentials or age
+   identity; the offsite restore path is therefore untested.
+4. **Rollback drill** — nothing has been rolled back under test.
+5. **Queue and memory alerting** — single-slot mutex works, but saturation is only visible by
+   inspection.
+
+## Definition of done
+
+A stage is complete only when every row in it is **VERIFIED**. Green workflows, merged PRs and
+readable archives alone do not close a row.
