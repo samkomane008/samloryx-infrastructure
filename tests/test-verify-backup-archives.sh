@@ -48,6 +48,7 @@ run() {
 }
 
 run healthy-both pass
+run missing-host fail -u BACKUP_HOST
 run unreadable-samloryx fail MOCK_SAM_ERROR=pg_restore-unreadable
 run low-samloryx-tables fail MOCK_SAM_TABLES=99
 run stale-samloryx fail MOCK_SAM_AGE_H=40
