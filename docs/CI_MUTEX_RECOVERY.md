@@ -32,7 +32,7 @@ bash scripts/deploy-ci-mutex.sh --check
 bash scripts/deploy-ci-mutex.sh --apply
 ```
 
-The apply command re-runs preflight, executes the bundled upstream regression tests **before stopping any services**, then stops listeners, sets up the shared lock, backs up runner environments, installs hooks and starts services including Nabor. It stops without changing anything when a worker is detected before mutation. A race is still possible if a new job is assigned between the idle check and service stop, so prefer a genuinely quiet CI window. If a worker persists after stopping listeners, the script fails closed and leaves services stopped for investigation.
+The apply command re-runs preflight, executes the bundled upstream regression tests **before stopping any services**, then stops listeners, sets up the shared lock, backs up runner environments, installs hooks and starts services including Nabor. It stops without changing anything when a worker is detected before mutation. A race is still possible if a new job is assigned between the idle check and service stop, so prefer a genuinely quiet CI window. If a worker persists after stopping listeners, the script fails closed and leaves services stopped for investigation. `--apply` exits `7` unless all six runner services report `active` after restart; the success banner is printed only on that verified path.
 
 ## Rollback
 
