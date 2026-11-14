@@ -36,3 +36,11 @@ The audit output is stored locally and ignored by Git. Do not publish host detai
 This is a public infrastructure standards and automation repository, not an inventory of production secrets.
 
 See [CI mutex recovery](docs/CI_MUTEX_RECOVERY.md), [Security policy](SECURITY.md), [architecture](docs/ARCHITECTURE.md), [rollout](docs/ROLLOUT.md), and [open-source tool choices](docs/TOOLS.md).
+
+## CI dependency reliability
+
+The reference implementation for persistent self-hosted pnpm storage, bounded
+retries, network diagnostics and release-gate preservation is documented in
+[CI pnpm network hardening](docs/CI_PNPM_NETWORK_HARDENING.md).
+`bash scripts/ci-pnpm.sh` is designed to be copied into individual product
+repositories with their existing checks left intact.
