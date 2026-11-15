@@ -8,56 +8,64 @@ Legend: **VERIFIED** — proven by recorded evidence · **PARTIAL** — some evi
 remains · **OPEN** — not started or no evidence · **BLOCKED** — cannot proceed without an owner
 decision or a paid feature.
 
-Last verified: **14 November 2026**.
+Last verified: **15 November 2026**.
 
 ## Stage 0 — Baseline
 
 | Requirement | Status | Evidence | Remaining work |
 |---|---|---|---|
-| Review workflow triggers, runner labels and secret access | VERIFIED | All workflows in Nabor, Samloryx OS and this repository reviewed during the 14 Nov sessions; runner labels are `self-hosted,linux,x64,<repo>-ci` | Re-review when a workflow is added |
-| Inspect backups, recovery, production deployment and branch protections | VERIFIED | Samloryx nightly + hourly backup cron and dumps observed; Nabor local pre-deploy dumps only; CD default-off; no branch protection on any of the three repositories | Re-check before each release |
-| No production change before a repeatable test and rollback exist | VERIFIED | No production service, database, runner or deployment switch was changed in the 14 Nov sessions | Keep the rule |
+| Review workflow triggers, runner labels and secret access | VERIFIED | All workflows in Nabor, Samloryx OS, this repository and the four supporting repositories reviewed on 14–15 Nov; labels are `self-hosted,linux,x64,samloryx-ci` (Nabor: `nabor-ci`), and every repository carries its label list in a repository variable | Re-review when a workflow is added |
+| Inspect backups, recovery, production deployment and branch protections | VERIFIED | Samloryx nightly + hourly backup cron and dumps observed; Nabor local pre-deploy dumps only; CD default-off (`NABOR_DEPLOY_ENABLED=false`, `SAMLORYX_GITHUB_DEPLOY_ENABLED` unset); protection read on 15 Nov: 404 (available, now enabled) for this public repository, 403 "upgrade to GitHub Pro" for `samloryx-os` and `nabor` | Re-check before each release |
+| No production change before a repeatable test and rollback exist | VERIFIED | No production service, database or deploy switch was changed on 14–15 Nov; the only host changes were runner enablement, monitoring and power-management settings | Keep the rule |
 
 ## Stage 1 — Runner recovery
 
 | Requirement | Status | Evidence | Remaining work |
 |---|---|---|---|
-| `samloryx-ci` VM reachable | VERIFIED | Read-only `multipass exec` and `deploy-ci-mutex.sh --check` succeeded on 14 Nov | None |
-| Listener health and registration per repository | VERIFIED | `deploy-ci-mutex.sh --check` reported six active units: nabor, personal-career, samloryx-consultancy-platform, samloryx-engineering-website, samloryx-os, samloryx-workspace | Re-run the check after any host change |
-| Serial gate inspected, not blindly reinstalled | VERIFIED | Installer now fails closed (PR #15, `971b8fcb`); `--check` executed read-only | Apply only in a quiet window if ever needed |
-| Harmless canary workflow | OPEN | No dedicated canary workflow exists | Add one secret-free canary per runner |
-| Concurrency, memory and disk controls | PARTIAL | One-slot mutex enforced; the 13 Nov global OOM incident is documented; VM has 5.9 GiB RAM and 52% disk use | Add memory/queue alerting; re-measure after each incident |
+| `samloryx-ci` VM reachable | VERIFIED | `bash scripts/runner-doctor.sh` on 15 Nov: VM running, 4 vCPU, 5.8 GiB, 30 GiB of 58 GiB used | None |
+| Listener health and registration per repository | VERIFIED | 15 Nov: the Nabor listener was found `disabled`/`inactive` after the host reboot (queued run 43686079752 stalled); enabled and started, that run then succeeded at 07:36Z. All six units are now `active` **and** `enabled`, all six registrations `online` (doctor exit 0) | Re-run the doctor after any host change |
+| Serial gate inspected, not blindly reinstalled | VERIFIED | Installer fails closed (PR #15); live single slot held by worker PID 45788 during the Samloryx platform build, released on completion; `install-ci-mutex-vm.sh` now also `enable`s each unit and exits 7 unless every one is active and enabled (PR #21, `3144926`) | Apply only in a quiet window if ever needed |
+| Harmless canary workflow | PARTIAL | Secret-free canary template added (`templates/github/workflows/canary.example.yml`); Nabor proposal in [nabor#240](https://github.com/samkomane008/nabor/pull/240); this repository is covered by `infra-ci` on hosted runners | Add the canary to the five remaining runners and record one dispatch each |
+| Concurrency, memory and disk controls | PARTIAL | One-slot mutex enforced. A 15-minute watchdog now alerts on queue age >30 min, stuck jobs >3 h, disk ≥85%, memory <250 MiB and missing listeners, through one deduplicated `ci-health` issue (PR #24, lifecycle in issue #23). Measured during the heaviest job: 3.7–3.8 GiB of 5.8 GiB used, ~2.1 GiB available, no OOM kill; a Node run afterwards left 4.3 GiB available | Hard per-job memory/CPU limits are still not enforced; VM sizing stays provisional until the dedicated server |
+| Host power management | PARTIAL | `sleep/suspend/hibernate/hybrid-sleep.target` all `masked`; drop-in present. **The running `systemd-logind` still reports `HandleLidSwitch=suspend`** because the drop-in was written after the last boot, so a lid close still issues a suspend request that the masked target then refuses | Apply the drop-in to the running service (restart `systemd-logind` or a planned reboot) in an idle window — owner decision |
 
 ## Stage 2 — Standard CI
 
 | Requirement | Status | Evidence | Remaining work |
 |---|---|---|---|
-| Non-deploying workflow pilot | VERIFIED | Nabor `nabor-quality` and `sonarcloud`; Samloryx `ci-gate` and `security-scan` | None |
-| Build, test and vulnerability gates | PARTIAL | Nabor #236 passed all three exact-head gates and merged (`2ce2fa20`); Samloryx #391 runs the full Java suite and is not yet green | Merge #391 only when every required check passes |
-| Required checks enforced by GitHub | BLOCKED | GitHub Free provides no branch protection on any of the three repositories | Owner decision: paid plan, or keep the procedural `guarded-merge.sh` gate |
-| Workflow policy applied per repository with review | PARTIAL | Nabor merged; Samloryx #392 is staged and default-off | Revalidate #392 on post-#391 main |
+| Non-deploying workflow pilot | VERIFIED | Nabor `nabor-quality` and `sonarcloud`; Samloryx `ci-gate` and `security-scan`; this repository's new `infra-ci` (shell parsing, all suites, vendored mutex 19/19, gitleaks) | None |
+| Build, test and vulnerability gates | VERIFIED | Samloryx #392 all seven checks green on exact head `1b5c0890` (15 Nov, platform-build 12m46s, 898 Java tests / 0 failures / 1 skipped, WebAuthn 10/10); Nabor #236 merged with all gates and #240 re-running them; this repository gated by `infra-ci` | Keep the rule: no merge without exact-head evidence |
+| Required checks enforced by GitHub | PARTIAL | `samloryx-infrastructure` `main` is now protected: PR required, `shell syntax and regression suites`, `gitleaks (credentials in the history)` and `SonarCloud Code Analysis` required and up to date, force pushes and deletions refused, admins included. `samloryx-os` and `nabor` return 403 "Upgrade to GitHub Pro or make this repository public" | Private repositories stay procedural (`guarded-merge.sh`) unless the owner changes plan or visibility |
+| Workflow policy applied per repository with review | PARTIAL | Nabor merged; this repository merged (#22, `162ccfb`); Samloryx #392 is green on its exact head but still **draft and unmerged** | Owner decision on #392 before any production deploy workflow is enabled |
 
 ## Stage 3 — Delivery hardening
 
 | Requirement | Status | Evidence | Remaining work |
 |---|---|---|---|
-| Continuous deployment from `main` | PARTIAL | **Samloryx: VERIFIED 14 Nov 20:16Z.** Server-side pull deploy (no production key on the PR runner) installed as a five-minute cron; `a79ddb9f` deployed with the full backup guard, 14/14 smoke checks and public release match; next cycle observed as a silent no-op. **Nabor: OPEN** — guarded preview pipeline exists but stays default-off because no dedicated always-on builder exists | Nabor needs an isolated builder host or runner |
-| Deployment identity separated from the PR runner | PARTIAL | Samloryx deploys by the host pulling `main` and using its own SSH identity, so no production key is installed on the CI VM; Nabor's deploy key would still need a builder identity | Nabor builder identity; keep production keys off PR runners |
+| Continuous deployment from `main` | PARTIAL | **Samloryx: VERIFIED 14 Nov 20:16Z.** Server-side pull deploy (no production key on the PR runner) as a five-minute cron; `a79ddb9f` deployed with the backup guard, 14/14 smoke checks and public release match. **Nabor: OPEN** — guarded preview pipeline exists but stays default-off because no dedicated always-on builder exists | Nabor needs an isolated builder host or runner |
+| Deployment identity separated from the PR runner | PARTIAL | Samloryx deploys by the host pulling `main` with its own SSH identity, so no production key is installed on the CI VM; Nabor's deploy key would still need a builder identity | Nabor builder identity; keep production keys off PR runners |
 | Deployment artifacts pinned | PARTIAL | Local Nabor preview images carry commit-SHA tags (`cfb39cf`, `c8e23ec`); registry digest pinning was not verified | Pin by digest before any production promotion |
 | Smoke test | PARTIAL | `deploy/smoke.sh` exists; production web, api and app returned 200 on 14 Nov | Run smoke as a recorded release step, not by hand only |
 | Rollback drill | OPEN | No rollback has been executed or recorded | Drill on an isolated host with a disposable release |
 | Backup restore | VERIFIED | Isolated restore on 14 Nov: Samloryx 160/160 tables (`postgres:18`), Nabor 47/47 public tables (`postgis:16-3.6`), both `pg_restore` exit 0; see `docs/BACKUP_EVIDENCE.md` | Repeat quarterly and after schema changes |
-| Alerts | PARTIAL | Samloryx watchdog runs every five minutes; backup freshness warns after 26 h | Nabor backup alert, CI queue alert and restore-age alert |
+| Alerts | PARTIAL | CI is now alerted end to end: watchdog timer every 15 min, one deduplicated `ci-health` issue, auto-closed on recovery (issue #23). Samloryx watchdog runs every five minutes and backup freshness warns after 26 h | Nabor backup alert, restore-age alert, and an alert path that survives the laptop being off |
 
 ## Open gates, in dependency order
 
-1. **Branch protection** — unavailable on the current GitHub plan; guarded merge stays procedural.
-2. **Nabor dedicated builder** — Samloryx now deploys from the host by pulling `main`, so it needs no separate executor. Nabor's guarded preview pipeline still needs an always-on builder that is neither the live Nabor host nor the shared PR runner.
+1. **Private-repository branch protection** — unavailable on GitHub Free (403 on `samloryx-os` and
+   `nabor`); guarded merge stays procedural there. This repository is protected because it is public.
+2. **Nabor dedicated builder** — Samloryx deploys from the host by pulling `main`, so it needs no
+   separate executor. Nabor's guarded preview pipeline still needs an always-on builder that is
+   neither the live Nabor host nor the shared PR runner.
 3. **Nabor offsite backup** — no timer, unit or cron installed and no R2 credentials or age
    identity; the offsite restore path is therefore untested.
 4. **Rollback drill** — nothing has been rolled back under test.
-5. **Queue and memory alerting** — single-slot mutex works, but saturation is only visible by
-   inspection.
+5. **Host power policy applied at runtime** — the masked sleep targets prevent a suspend, but
+   `systemd-logind` must be restarted (or the host rebooted) before the lid drop-in is in effect.
+6. **Single-alert-path risk** — the CI watchdog shares the laptop that hosts the VM and needs the
+   unlocked desktop keyring, so a laptop that is off is also unmonitored; see `docs/CI_HEALTH.md`.
+7. **Hard resource limits** — the mutex serialises jobs but nothing caps a single oversized job
+   (JVM heap flags exist per workflow; no cgroup limit).
 
 ## Definition of done
 
