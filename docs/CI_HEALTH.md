@@ -11,12 +11,12 @@ minutes. It is the alert channel that was missing while a listener sat offline a
 | VM | `samloryx-ci` is not running |
 | Listener state | a repository's unit is not `active`, or not `enabled` (so a reboot would drop it) |
 | GitHub registration | the repository's runner is `offline`, missing, or the API call fails |
-| Queue | a queued run is older than 30 minutes |
-| Stuck job | an in-progress job started more than 3 hours ago |
-| Disk | root filesystem at 85% or more |
-| Memory | under 250 MiB available |
+| Queue | a queued run is older than 30 minutes, or the GitHub queue API is unavailable |
+| Stuck job | an in-progress job started more than 3 hours ago, or the GitHub run/job API is unavailable |
+| Disk | root filesystem at 85% or more, or usage cannot be measured |
+| Memory | under 250 MiB available, or available memory cannot be measured |
 
-It is read-only: nothing is restarted, cancelled, retried or cleaned. Thresholds are environment
+The watchdog **fails closed** on GitHub queue, in-progress-run and job-detail API errors and on unavailable disk/memory metrics. An API outage is **not** interpreted as an empty healthy queue. Offline regression tests inject failures in each path; the health alert remains active until a subsequent successful observation. It is read-only: nothing is restarted, cancelled, retried or cleaned. Thresholds are environment
 variables (`CI_QUEUE_MAX_MIN`, `CI_STUCK_MAX_H`, `CI_DISK_MAX_PCT`, `CI_MEM_MIN_MB`).
 
 ## Alert channel
