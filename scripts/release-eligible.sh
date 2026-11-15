@@ -48,10 +48,10 @@ for wf in "${workflows[@]}"; do
   runs="$(gh api "repos/$repo/actions/workflows/$wf/runs?head_sha=$sha&event=push&per_page=100")" ||
     fail "cannot read workflow $wf"
   jq -e --arg sha "$sha" '
-    (.total_count <= 100) and
-    [.workflow_runs[] | select(.head_sha == $sha and .event == "push")] as $matches |
-    ($matches | length > 0) and
-    all($matches[]; .status == "completed" and .conclusion == "success")
+    (.total_count <= 100)
+    and any(.workflow_runs[]; .head_sha == $sha and .event == "push")
+    and all(.workflow_runs[] | select(.head_sha == $sha and .event == "push");
+      .status == "completed" and .conclusion == "success")
   ' <<< "$runs" >/dev/null || fail "workflow not green: $wf"
 done
 [[ "$(gh api "repos/$repo/git/ref/heads/main" --jq '.object.sha')" == "$sha" ]] ||
