@@ -98,7 +98,10 @@ for name in $REPOS; do
   fi
 
   queued="$(gh api "repos/samkomane008/$name/actions/runs?status=queued&per_page=100" \
-    --jq '.workflow_runs[] | "\(.id) \(.created_at) \(.name)"' 2>/dev/null)" || queued=""
+    --jq '.workflow_runs[] | "\(.id) \(.created_at) \(.name)"' 2>/dev/null)" || {
+    alert "github: cannot read queued runs for $name"
+    queued=""
+  }
   while read -r id created wname; do
     [[ -n "${id:-}" ]] || continue
     age_min=$(( (now - $(date -u -d "$created" +%s)) / 60 ))
@@ -110,13 +113,19 @@ for name in $REPOS; do
   done <<< "$queued"
 
   running="$(gh api "repos/samkomane008/$name/actions/runs?status=in_progress&per_page=100" \
-    --jq '.workflow_runs[] | "\(.id) \(.name)"' 2>/dev/null)" || running=""
+    --jq '.workflow_runs[] | "\(.id) \(.name)"' 2>/dev/null)" || {
+    alert "github: cannot read in-progress runs for $name"
+    running=""
+  }
   while read -r id wname; do
     [[ -n "${id:-}" ]] || continue
     # Judge age by the oldest running job, not by the run's creation time: a
     # rerun of an old run legitimately restarts the clock.
     started="$(gh api "repos/samkomane008/$name/actions/runs/$id/jobs" \
-      --jq '[.jobs[] | select(.status == "in_progress") | .started_at // empty] | min // empty' 2>/dev/null)"
+      --jq '[.jobs[] | select(.status == "in_progress") | .started_at // empty] | min // empty' 2>/dev/null)" || {
+      alert "github: cannot read job start times for $name run $id"
+      continue
+    }
     [[ -n "$started" ]] || continue
     age_h=$(( (now - $(date -u -d "$started" +%s)) / 3600 ))
     if (( age_h >= STUCK_MAX_H )); then
