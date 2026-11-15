@@ -30,9 +30,9 @@ set -euo pipefail
 args="$*"
 case "$args" in
   *"/actions/runners "*) printf '%s' "${MOCK_RUNNERS:-}" ;;
-  *"status=queued"*) printf '%s' "${MOCK_QUEUED:-}" ;;
-  *"status=in_progress"*) printf '%s' "${MOCK_RUNNING:-}" ;;
-  *"/jobs "*) printf '%s' "${MOCK_JOB_STARTED:-}" ;;
+  *"status=queued"*) [[ "${MOCK_QUEUE_ERROR:-0}" != 1 ]] || exit 17; printf '%s' "${MOCK_QUEUED:-}" ;;
+  *"status=in_progress"*) [[ "${MOCK_RUNNING_ERROR:-0}" != 1 ]] || exit 17; printf '%s' "${MOCK_RUNNING:-}" ;;
+  *"/jobs "*) [[ "${MOCK_JOBS_ERROR:-0}" != 1 ]] || exit 17; printf '%s' "${MOCK_JOB_STARTED:-}" ;;
   *"issue list"*)
     if [[ -f "$MOCK_STATE/issue" ]]; then cat "$MOCK_STATE/issue"; else echo ""; fi
     ;;
@@ -94,6 +94,12 @@ run orphan-runs pass MOCK_QUEUED="43095570489 $orphan_old ci-gate"
 
 stuck_start="$(date -u -d '5 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
 run stuck-job fail MOCK_RUNNING="43636060857 ci-gate" MOCK_JOB_STARTED="$stuck_start"
+
+# A failed GitHub API read must never be interpreted as an empty (healthy)
+# queue or job list. These are failure-injection regressions for issue #7.
+run queue-api-unavailable fail MOCK_QUEUE_ERROR=1
+run running-api-unavailable fail MOCK_RUNNING_ERROR=1
+run jobs-api-unavailable fail MOCK_RUNNING="43636060857 ci-gate" MOCK_JOBS_ERROR=1
 
 # Notification path: one alert opens an issue, an unchanged alert set does not
 # comment again, and recovery closes the issue.
