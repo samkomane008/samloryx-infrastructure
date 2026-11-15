@@ -8,7 +8,10 @@ cat > "$BIN/gh" <<'MOCK'
 #!/usr/bin/env bash
 set -Eeuo pipefail
 case "$*" in
-  *'/git/ref/heads/main'*) echo "${MOCK_MAIN:-$TEST_SHA}" ;;
+  *'/git/ref/heads/main'*)
+    if [[ "${CASE:-}" == wrong_main ]]; then printf "f%.0s" {1..40}; echo
+    else echo "${MOCK_MAIN:-$TEST_SHA}"; fi
+    ;;
   *'/pulls?'*)
     [[ "${CASE:-}" != api_error ]] || exit 44
     if [[ "${CASE:-}" == missing_pr ]]; then echo '[]'
