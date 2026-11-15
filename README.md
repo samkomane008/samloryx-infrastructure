@@ -35,7 +35,10 @@ The audit output is stored locally and ignored by Git. Do not publish host detai
 
 This is a public infrastructure standards and automation repository, not an inventory of production secrets.
 
-See [CI mutex recovery](docs/CI_MUTEX_RECOVERY.md), [Security policy](SECURITY.md), [architecture](docs/ARCHITECTURE.md), [rollout](docs/ROLLOUT.md), and [open-source tool choices](docs/TOOLS.md).
+See [CI mutex recovery](docs/CI_MUTEX_RECOVERY.md), [CI health watchdog](docs/CI_HEALTH.md),
+[runner canary](docs/CI_CANARY.md), [Security policy](SECURITY.md),
+[architecture](docs/ARCHITECTURE.md), [rollout](docs/ROLLOUT.md), and
+[open-source tool choices](docs/TOOLS.md).
 
 ## CI dependency reliability
 
