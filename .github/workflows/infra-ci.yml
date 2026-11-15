@@ -1,0 +1,77 @@
+# Gates for the infrastructure repository itself.
+#
+# This repository is public, so GitHub-hosted runners are free and no paid
+# minutes or self-hosted capacity are involved. Code from a fork therefore
+# never reaches the CI VM, which shares a Docker socket and the production
+# deploy identity's network. Fork pull requests still need a maintainer
+# approval before any job runs, which is the intended behaviour here.
+#
+# What this proves before a merge:
+#   - every shell script parses, including the vendored mutex and the tests
+#   - the repository's own regression suites pass on a clean machine
+#   - the vendored job mutex passes its upstream and local test suite
+#   - no credential has ever been committed to the history
+name: infra-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  scripts:
+    name: shell syntax and regression suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Parse every shell script
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(scripts/*.sh tests/*.sh vendor/actions-runner-mutex/*.sh \
+                 vendor/actions-runner-mutex/hooks/*.sh vendor/actions-runner-mutex/test/*.sh)
+          (( ${#files[@]} > 0 )) || { echo "::error::no shell scripts found"; exit 1; }
+          for f in "${files[@]}"; do
+            bash -n "$f"
+            echo "ok $f"
+          done
+
+      - name: Run the repository regression suites
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          suites=(tests/test-*.sh)
+          (( ${#suites[@]} > 0 )) || { echo "::error::no test suites found"; exit 1; }
+          for t in "${suites[@]}"; do
+            echo "=== $t ==="
+            bash "$t"
+          done
+
+      - name: Vendored job mutex test suite
+        run: bash vendor/actions-runner-mutex/test/run-tests.sh
+
+  secrets:
+    name: gitleaks (credentials in the history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The whole history, because a secret removed in the next commit is
+          # still a secret that was published. This repository is public.
+          fetch-depth: 0
+      - name: Scan
+        run: |
+          set -euo pipefail
+          docker run --pull=always --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.30.1 \
+            detect --source=/repo --redact --verbose --exit-code 1
