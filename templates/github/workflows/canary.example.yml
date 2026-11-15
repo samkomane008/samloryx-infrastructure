@@ -31,7 +31,10 @@ jobs:
   canary:
     name: runner canary (secret-free)
     runs-on: ${{ fromJSON(vars.<REPO>_CI_RUNNERS || '["self-hosted","Linux","X64","<label>"]') }}
-    timeout-minutes: 10
+    # The shared mutex may hold this job behind another repository's build
+    # (JOB_LOCK_MAX_WAIT_SECS is 45 minutes), so the timeout must outlast a
+    # legitimate wait. Latency is the watchdog's job: it alerts above 30 min.
+    timeout-minutes: 50
     steps:
       - name: Describe the runner without exposing anything
         run: |
