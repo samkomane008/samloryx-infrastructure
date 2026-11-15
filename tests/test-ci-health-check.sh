@@ -18,8 +18,8 @@ case "$*" in
     echo "samloryx-ci,${MOCK_VM_STATE:-RUNNING},10.97.0.42"
     ;;
   *is-enabled*) printf '%s' "${MOCK_LISTENERS:-}" ;;
-  *"df --output=pcent"*) echo "Use%"; echo "${MOCK_DISK_PCT:-52}%" ;;
-  *"free -m"*) echo "Mem:"; echo "${MOCK_MEM_MB:-2400}" ;;
+  *"df --output=pcent"*) [[ "${MOCK_DISK_ERROR:-0}" != 1 ]] || exit 17; echo "Use%"; echo "${MOCK_DISK_PCT:-52}%" ;;
+  *"free -m"*) [[ "${MOCK_MEM_ERROR:-0}" != 1 ]] || exit 17; echo "Mem:"; echo "${MOCK_MEM_MB:-2400}" ;;
   *) echo "unexpected multipass call: $*" >&2; exit 1 ;;
 esac
 MOCK
@@ -100,6 +100,8 @@ run stuck-job fail MOCK_RUNNING="43636060857 ci-gate" MOCK_JOB_STARTED="$stuck_s
 run queue-api-unavailable fail MOCK_QUEUE_ERROR=1
 run running-api-unavailable fail MOCK_RUNNING_ERROR=1
 run jobs-api-unavailable fail MOCK_RUNNING="43636060857 ci-gate" MOCK_JOBS_ERROR=1
+run disk-metric-unavailable fail MOCK_DISK_ERROR=1
+run memory-metric-unavailable fail MOCK_MEM_ERROR=1
 
 # Notification path: one alert opens an issue, an unchanged alert set does not
 # comment again, and recovery closes the issue.
