@@ -1,20 +1,36 @@
-# TEMPLATE ONLY. Pilot on a repository after runner registration is verified.
+# TEMPLATE: copy to each new product's .github/workflows/quality.yml,
+# replace job-specific commands and label variable after owner review.
+# Secret-free PR CI; DO NOT run untrusted fork code on persistent Docker-capable
+# self-hosted runners. Use a disposable isolated fork CI runner if needed.
 name: verify
+
 on:
   pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
+
 concurrency:
   group: verify-${{ github.repository }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Preserve ALL current-main release evidence; cancel stale PR-head CI only.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   quality:
+    name: quality
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ${{ fromJSON(vars.CI_RUNNERS || '["self-hosted","Linux","X64","samloryx-ci"]') }}
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4 # Pin to an audited commit SHA before adoption
-      - name: Repository checks
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Repository fast checks and full tests
         run: |
-          test -f scripts/check.sh || { echo "Add a repository-specific scripts/check.sh"; exit 1; }
+          set -euo pipefail
+          test -f scripts/check.sh || { echo "::error::Add scripts/check.sh before adoption"; exit 1; }
           bash scripts/check.sh
