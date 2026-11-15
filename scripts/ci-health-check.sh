@@ -69,16 +69,20 @@ done')" || alert "vm: cannot read listener units"
 
   # --- capacity
   disk="$(multipass exec "$VM" -- df --output=pcent / 2>/dev/null | tail -1 | tr -dc '0-9')"
-  if [[ -n "$disk" ]] && (( disk >= DISK_MAX_PCT )); then
+  if [[ -z "$disk" ]]; then
+    alert "disk: cannot read root filesystem usage"
+  elif (( disk >= DISK_MAX_PCT )); then
     alert "disk: root filesystem at ${disk}% (threshold ${DISK_MAX_PCT}%)"
   else
-    ok "disk: ${disk:-unknown}% used"
+    ok "disk: ${disk}% used"
   fi
   mem="$(multipass exec "$VM" -- bash -lc "free -m | awk '/^Mem:/ {print \$7}'" 2>/dev/null | tr -dc '0-9')"
-  if [[ -n "$mem" ]] && (( mem < MEM_MIN_MB )); then
+  if [[ -z "$mem" ]]; then
+    alert "memory: cannot read available capacity"
+  elif (( mem < MEM_MIN_MB )); then
     alert "memory: ${mem} MiB available (floor ${MEM_MIN_MB} MiB)"
   else
-    ok "memory: ${mem:-unknown} MiB available"
+    ok "memory: ${mem} MiB available"
   fi
 fi
 
