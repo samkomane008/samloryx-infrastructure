@@ -54,7 +54,7 @@ small isolated feature branches (Samloryx OS / Nabor / Consultancy / Engineering
 | `nabor` | Full quality+OSV, Sonar and browser acceptance | Gated server-pull preview deploy, switch default OFF by owner decision; store launch is independent |
 | `samloryx-consultancy-platform` | Backend+frontend CI + Sonar on the self-hosted runner | The Hetzner five-minute cron (not Lightsail) stays the authority and gains the server release gate; GitHub CD stays off |
 | `samloryx-engineering-website` | Web build and Sonar; existing atomic server release rollback | Cloudflare CD must check current exact SHA and security gate; publishing content approval remains separate |
-| `personal-career` | **No CI** (owner decision 16 Nov 2026): workflows and runner listener removed (SonarCloud analysis being removed); local checks recorded in the PR body | Stores job-hunting progress only; nothing deploys |
+| `personal-career` | **No CI** (owner decision 16 Nov 2026): workflows, runner listener and SonarQube Cloud project removed; local checks recorded in the PR body | Stores job-hunting progress only; nothing deploys |
 | `samloryx-workspace` | Secret-free validation; restrict CRM ingestion to reviewed `main` inputs | CRM ingest token is production-only, not available on PR CI |
 | `samloryx-infrastructure` | Shell regression suite, Gitleaks, independent SonarCloud | Public repo branch protection must remain intact; main Sonar C finding tracked in issue #28 |
 
