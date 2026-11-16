@@ -35,27 +35,34 @@ needed, and the server never ships a commit that has not passed every named chec
 
 ## Gate contract (what blocks a release)
 
-`server-release-gate.sh --repo OWNER/REPO --sha SHA --token-file FILE --workflow W.yml --job NAME [--require-sonar]`
+`server-release-gate.sh --repo OWNER/REPO --sha SHA --token-file FILE --workflow W.yml --job NAME [...]`
 ships a SHA only if:
 
 1. it is the current `main` head, checked at the start and again at the end;
 2. a merged PR into `main` has it as its merge commit (a direct push never qualifies);
 3. the latest main-push run of each named workflow on that SHA succeeded;
-4. each named job has a completed, successful check run on that SHA (skipped, neutral, pending and
-   missing all block);
-5. with `--require-sonar`, the independent `SonarCloud Code Analysis` quality gate passed;
-6. no commit status context is failing or pending.
+4. each named job, read from the jobs of exactly those runs, completed with success on that SHA
+   (skipped, neutral, cancelled, pending and missing all block);
+5. no commit status context is failing or pending.
+
+**SonarCloud is a named job, not a check run.** Fine-grained tokens cannot be granted the Checks
+permission (confirmed 16 Nov: 403 on `check-runs` with every other read permission granted), so the
+gate never reads the `SonarCloud Code Analysis` check. Instead each product's CI runs the scanner
+with `-Dsonar.qualitygate.wait=true`, which polls SonarCloud's server-side quality gate and fails the
+job when the gate fails. That job's success is then the quality-gate result, and the gate requires it
+by name.
 
 Any API error or truncated response blocks. The token reaches `curl` on stdin only. Offline
-regression suite: `bash tests/test-server-release-gate.sh` (28 cases).
+regression suite: `bash tests/test-server-release-gate.sh` (28 cases; the mock fails if the
+check-runs API is ever called).
 
 Required checks per product:
 
 | Product | Workflows | Jobs | Sonar |
 |---|---|---|---|
-| `samloryx-os` | `ci-gate.yml`, `security-scan.yml` | `platform-build`, `web-build`, `marketing-build`, `mobile-typecheck`, `semgrep (the code itself)`, `osv (known vulnerable dependencies)`, `gitleaks (credentials in the history)` | When `apps/platform/` changed (built into `verify-release-checks.sh`) |
-| `samloryx-consultancy-platform` | `ci-gate.yml` | `backend-build`, `frontend-build` | Always |
-| `nabor` | `quality.yml`, `sonarcloud.yml` | `Format, lint, typecheck, test, build and OSV`, `scan` | Always |
+| `samloryx-os` | `ci-gate.yml`, `security-scan.yml` (+ `sonarcloud.yml` when `apps/platform/` changed) | `platform-build`, `web-build`, `marketing-build`, `mobile-typecheck`, `semgrep (the code itself)`, `osv (known vulnerable dependencies)`, `gitleaks (credentials in the history)` | Job `scan` with quality-gate wait, when `apps/platform/` changed (in `verify-release-checks.sh`) |
+| `samloryx-consultancy-platform` | `ci-gate.yml` | `backend-build`, `frontend-build` | Inside `backend-build`: on a main push the job fails unless the CI scan ran and the quality gate passed |
+| `nabor` | `quality.yml`, `sonarcloud.yml` | `Format, lint, typecheck, test, build and OSV`, `scan` | Job `scan`, once it waits for the quality gate |
 
 ## One-time owner setup per product
 
@@ -64,8 +71,9 @@ Required checks per product:
 GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token.
 
 - **Resource owner:** `samkomane008`. **Repository access:** only the one product repository.
-- **Repository permissions, all read-only:** Contents, Pull requests, Actions, Checks, Commit statuses
-  (Metadata is added automatically). Nothing else, and no write permission of any kind.
+- **Repository permissions, all read-only:** Actions, Commit statuses, Contents, Pull requests
+  (Metadata is added automatically). Nothing else, and no write permission of any kind. There is no
+  Checks option for fine-grained tokens, and the gate does not need one.
 - **Expiry:** 90 days, with a calendar reminder to rotate.
 
 One token per product. Nabor's token must never be on a Samloryx path, and the reverse.
@@ -92,14 +100,13 @@ Only after step 3 works, and only with the backup, smoke test and rollback targe
 runbook requires. The product's deploy script records each attempt and refuses to retry a failed
 SHA until `main` moves.
 
-## Status (16 November 2026)
+## Status (16 November 2026, evening)
 
 | Product | CI | Gate in repo | Gate on server | Token | Switch |
 |---|---|---|---|---|---|
-| `samloryx-os` | Self-hosted, green | Yes (`#402`) | **No**: the live checkout `c8ec41b` predates the gate | Not created | `AUTO_DEPLOY=off`, cron removed 15 Nov |
-| `samloryx-consultancy-platform` | Self-hosted, green | PR in progress | **No**: the live cron is unguarded | Not created | On (unguarded) |
-| `nabor` | Self-hosted, queue-bound | PR in progress | No | Not created | Off by decision |
+| `samloryx-os` | Self-hosted | Yes (`#402`), moving to the jobs API | **No**: the live checkout `c8ec41b` predates it | Installed, verified | `AUTO_DEPLOY=off`, cron removed 15 Nov |
+| `samloryx-consultancy-platform` | Self-hosted | Yes (`deploy/hetzner/`, #99) | **Yes**, installed 16 Nov from `3c6c7b9b`; update to the jobs-API gate pending | Installed, verified | `AUTO_DEPLOY=on` |
+| `nabor` | Self-hosted, queue-bound | `scripts/release-eligible.sh` (owner-run) | No | Not created | Off by decision |
 
-SamloryxOS `main` (`1b61c0ef`) currently fails the SonarCloud quality gate (52% coverage on new
-code, 80% required) with 35 platform files changed since the live release. The gate correctly
-refuses it. Production stays on `c8ec41b` until a fully green `main` exists.
+SamloryxOS `main` (`1b61c0ef`) fails the SonarCloud quality gate (52% coverage on new code, 80%
+required); samkomane008/samloryx-os#425 adds the missing passkey tests (projected 90.5%).

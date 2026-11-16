@@ -8,7 +8,7 @@
 #   server-release-gate.sh --repo OWNER/REPO --sha 40_HEX_SHA \
 #       --token-file /path/to/read-only-token \
 #       --workflow ci-gate.yml [--workflow ...] \
-#       --job backend-build [--job ...] [--require-sonar]
+#       --job backend-build [--job ...]
 #
 # A release is eligible only when ALL of these hold:
 #   1. the SHA is the current main head (checked first and again last);
@@ -16,17 +16,20 @@
 #      (a direct push to main never qualifies);
 #   3. the latest main-push run of every named workflow for this SHA
 #      completed with success (a PR run or an older main run does not count);
-#   4. every named job has a completed, successful check run on this SHA
-#      (missing, pending, skipped, neutral, cancelled or failed all block);
-#   5. with --require-sonar, the independent "SonarCloud Code Analysis"
-#      quality gate passed on this SHA (a scanner job finishing is not enough);
-#   6. no commit status context on this SHA is failing or pending.
+#   4. every named job, looked up in the jobs of exactly those runs, completed
+#      with success on this SHA (missing, pending, skipped, neutral,
+#      cancelled or failed all block). Name the SonarCloud quality gate job
+#      here: its CI step runs the scanner with sonar.qualitygate.wait=true, so
+#      the job fails whenever the server-side quality gate fails;
+#   5. no commit status context on this SHA is failing or pending.
 # Any API error, truncated response or unexpected shape blocks the release.
 #
 # The token must be a fine-grained, read-only GitHub token (Contents, Pull
-# requests, Actions, Checks and Commit statuses: read) in a file that only its
-# owner can read (mode 0600 or 0400). It is passed to curl on stdin, never as a
-# command-line argument, so it does not appear in the process list or logs.
+# requests, Actions and Commit statuses: read) in a file that only its
+# owner can read (mode 0600 or 0400). Fine-grained tokens cannot be granted
+# the Checks permission, so this gate never calls the check-runs API. The
+# token is passed to curl on stdin, never as a command-line argument, so it
+# does not appear in the process list or logs.
 #
 # Install a reviewed copy OUTSIDE the checkout that cron fetches, so a newly
 # fetched (not yet validated) commit can never replace its own gate.
@@ -34,11 +37,11 @@ set -Eeuo pipefail
 
 API="https://api.github.com"
 usage() {
-  echo "Usage: $0 --repo OWNER/REPO --sha 40_HEX_SHA --token-file FILE --workflow FILE.yml [...] --job NAME [...] [--require-sonar]"
+  echo "Usage: $0 --repo OWNER/REPO --sha 40_HEX_SHA --token-file FILE --workflow FILE.yml [...] --job NAME [...]"
 }
 fail() { printf 'RELEASE BLOCKED: %s\n' "$*" >&2; exit 1; }
 
-repo='' sha='' token_file='' sonar=0
+repo='' sha='' token_file=''
 jobs=() workflows=()
 while (($#)); do
   case "$1" in
@@ -52,7 +55,6 @@ while (($#)); do
         --workflow) workflows+=("$2") ;;
       esac
       shift 2 ;;
-    --require-sonar) sonar=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
   esac
@@ -95,35 +97,42 @@ api "commits/$sha/pulls?per_page=100" | jq -e --arg sha "$sha" '
                               and .merge_commit_sha == $sha)' >/dev/null ||
   fail 'no merged main PR has this SHA as its merge commit'
 
-# 3. Latest main-push run of each workflow is a success.
+# 3. Latest main-push run of each workflow is a success; remember its id.
+run_ids=()
 for wf in "${workflows[@]}"; do
-  state="$(api "actions/workflows/$wf/runs?head_sha=$sha&event=push&per_page=100" | jq -r --arg sha "$sha" '
-    if (.total_count | type) != "number" or .total_count > 100 then "truncated"
+  latest="$(api "actions/workflows/$wf/runs?head_sha=$sha&event=push&per_page=100" | jq -r --arg sha "$sha" '
+    if (.total_count | type) != "number" or .total_count > 100 then "truncated -"
     else
       [.workflow_runs[] | select(.head_sha == $sha and .event == "push" and .head_branch == "main")]
       | sort_by(.created_at, (.run_attempt // 1))
-      | if length == 0 then "missing"
-        else last | if .status == "completed" then (.conclusion // "missing") else "pending" end
+      | if length == 0 then "missing -"
+        else last | (if .status == "completed" then (.conclusion // "missing") else "pending" end)
+                    + " " + (.id | tostring)
         end
     end')"
+  state="${latest%% *}" id="${latest##* }"
   [[ "$state" == success ]] || fail "workflow $wf on main push: $state"
+  [[ "$id" =~ ^[0-9]+$ ]] || fail "workflow $wf: invalid run id"
+  run_ids+=("$id")
 done
 
-# 4 and 5. Named exact-SHA check runs.
-if ((sonar)); then jobs+=('SonarCloud Code Analysis'); fi
-checks="$(api "commits/$sha/check-runs?per_page=100")"
-jq -e --arg sha "$sha" '
-  (.total_count | type) == "number" and .total_count == (.check_runs | length)
-  and all(.check_runs[]; .head_sha == $sha)' >/dev/null <<< "$checks" ||
-  fail 'truncated or inconsistent check-run response'
+# 4. Named jobs, read from exactly those runs (latest attempt of each job).
+jobs_json='[]'
+for id in "${run_ids[@]}"; do
+  page="$(api "actions/runs/$id/jobs?filter=latest&per_page=100")"
+  jq -e '(.total_count | type) == "number" and .total_count == (.jobs | length)' >/dev/null <<< "$page" ||
+    fail "truncated or inconsistent job list for run $id"
+  jobs_json="$(jq -c --argjson add "$(jq -c '.jobs' <<< "$page")" '. + $add' <<< "$jobs_json")"
+done
 for job in "${jobs[@]}"; do
-  jq -e --arg name "$job" '
-    [.check_runs[] | select(.name == $name)] as $m
-    | ($m | length) > 0 and all($m[]; .status == "completed" and .conclusion == "success")
-  ' >/dev/null <<< "$checks" || fail "required check not green: $job"
+  jq -e --arg name "$job" --arg sha "$sha" '
+    [.[] | select(.name == $name)] as $m
+    | ($m | length) > 0
+      and all($m[]; .head_sha == $sha and .status == "completed" and .conclusion == "success")
+  ' >/dev/null <<< "$jobs_json" || fail "required job not green: $job"
 done
 
-# 6. Commit statuses: the latest state of every context must be success.
+# 5. Commit statuses: the latest state of every context must be success.
 api "commits/$sha/status" | jq -e '
   (.statuses | type) == "array"
   and ([.statuses | group_by(.context)[] | sort_by(.updated_at // .created_at // "") | last]

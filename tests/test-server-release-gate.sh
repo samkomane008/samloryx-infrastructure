@@ -28,41 +28,43 @@ case "$url" in
     elif [[ "$CASE" == unmerged_pr ]]; then printf '[{"merged_at":null,"base":{"ref":"main"},"merge_commit_sha":"%s"}]\n' "$TEST_SHA"
     else printf '[{"merged_at":"2026-11-16T08:00:00Z","base":{"ref":"main"},"merge_commit_sha":"%s"}]\n' "$TEST_SHA"; fi ;;
   */actions/workflows/*)
-    python3 - <<'PY'
+    python3 - <<'PY2'
 import json, os
 case = os.environ['CASE']; sha = os.environ['TEST_SHA']
-run = {'head_sha': sha, 'event': 'push', 'head_branch': 'main', 'status': 'completed',
+run = {'id': 501, 'head_sha': sha, 'event': 'push', 'head_branch': 'main', 'status': 'completed',
        'conclusion': 'success', 'created_at': '2026-11-16T08:01:00Z', 'run_attempt': 1}
 runs = [run]
 if case == 'workflow_failed': run['conclusion'] = 'failure'
 if case == 'workflow_pending': run['status'] = 'in_progress'; run['conclusion'] = None
 if case == 'workflow_missing': runs = []
+if case == 'workflow_pr_only': run['event'] = 'pull_request'
 if case == 'workflow_rerun_green':
-    runs = [dict(run, conclusion='failure'), dict(run, run_attempt=2)]
+    runs = [dict(run, id=500, conclusion='failure'), dict(run, run_attempt=2)]
 if case == 'workflow_latest_red':
-    runs = [run, dict(run, created_at='2026-11-16T09:00:00Z', conclusion='failure')]
+    runs = [run, dict(run, id=502, created_at='2026-11-16T09:00:00Z', conclusion='failure')]
 print(json.dumps({'total_count': len(runs) + (200 if case == 'workflow_truncated' else 0), 'workflow_runs': runs}))
-PY
+PY2
     ;;
-  */check-runs\?*)
-    python3 - <<'PY'
+  */actions/runs/501/jobs\?*)
+    python3 - <<'PY2'
 import json, os
 case = os.environ['CASE']; sha = os.environ['TEST_SHA']
-names = ['backend-build', 'frontend-build', 'SonarCloud Code Analysis', 'deploy']
+names = ['backend-build', 'frontend-build', 'deploy']
 if case == 'missing_job': names.remove('frontend-build')
-if case == 'missing_sonar': names.remove('SonarCloud Code Analysis')
-checks = [{'name': n, 'head_sha': sha, 'status': 'completed', 'conclusion': 'success'} for n in names]
-checks[-1]['conclusion'] = 'skipped'  # an unrelated skipped job must not block
-if case == 'job_pending': checks[0]['status'] = 'in_progress'; checks[0]['conclusion'] = None
-if case == 'job_failed': checks[1]['conclusion'] = 'failure'
-if case == 'job_skipped': checks[1]['conclusion'] = 'skipped'
-if case == 'job_neutral': checks[1]['conclusion'] = 'neutral'
-if case == 'sonar_failed': checks[2]['conclusion'] = 'failure'
-if case == 'job_wrong_sha': checks[1]['head_sha'] = 'f' * 40
-total = len(checks) + (1 if case == 'checks_truncated' else 0)
-print(json.dumps({'total_count': total, 'check_runs': checks}))
-PY
+jobs = [{'name': n, 'head_sha': sha, 'status': 'completed', 'conclusion': 'success'} for n in names]
+jobs[-1]['conclusion'] = 'skipped'  # an unrelated skipped job must not block
+if case == 'job_pending': jobs[0]['status'] = 'in_progress'; jobs[0]['conclusion'] = None
+if case == 'job_failed': jobs[1]['conclusion'] = 'failure'
+if case == 'job_skipped': jobs[1]['conclusion'] = 'skipped'
+if case == 'job_neutral': jobs[1]['conclusion'] = 'neutral'
+if case == 'job_cancelled': jobs[1]['conclusion'] = 'cancelled'
+if case == 'job_wrong_sha': jobs[1]['head_sha'] = 'f' * 40
+total = len(jobs) + (1 if case == 'jobs_truncated' else 0)
+print(json.dumps({'total_count': total, 'jobs': jobs}))
+PY2
     ;;
+  */check-runs*)
+    echo 'check-runs must never be called: fine-grained tokens cannot read it' >&2; exit 96 ;;
   */status)
     case "$CASE" in
       status_failed) echo '{"statuses":[{"context":"ext","state":"failure","updated_at":"2026-11-16T08:00:00Z"}]}' ;;
@@ -89,7 +91,7 @@ run_case() {
   set +e
   CASE="$name" bash "$ROOT/scripts/server-release-gate.sh" \
     --repo samkomane008/example --sha "$TEST_SHA" --token-file "$token_file" \
-    --workflow ci-gate.yml --job backend-build --job frontend-build --require-sonar \
+    --workflow ci-gate.yml --job backend-build --job frontend-build \
     > "$WORK/out" 2>&1
   code=$?
   set -e
@@ -115,15 +117,15 @@ run_case workflow_pending fail
 run_case workflow_missing fail
 run_case workflow_latest_red fail
 run_case workflow_truncated fail
+run_case workflow_pr_only fail
 run_case missing_job fail
-run_case missing_sonar fail
-run_case sonar_failed fail
 run_case job_pending fail
 run_case job_failed fail
 run_case job_skipped fail
 run_case job_neutral fail
+run_case job_cancelled fail
 run_case job_wrong_sha fail
-run_case checks_truncated fail
+run_case jobs_truncated fail
 run_case status_failed fail
 
 # Token file hygiene.
@@ -136,8 +138,11 @@ ln -s "$TOKEN_FILE" "$WORK/link"; run_case token_symlink fail "$WORK/link"
 set +e
 bash "$ROOT/scripts/server-release-gate.sh" --repo samkomane008/example >/dev/null 2>&1; code=$?
 bash "$ROOT/scripts/server-release-gate.sh" --bogus >/dev/null 2>&1; code2=$?
+# The retired flag must fail closed as a usage error, never be ignored.
+bash "$ROOT/scripts/server-release-gate.sh" --repo samkomane008/example --sha "$TEST_SHA" \
+  --token-file "$TOKEN_FILE" --workflow ci-gate.yml --job backend-build --require-sonar >/dev/null 2>&1; code3=$?
 set -e
-if [[ $code -eq 0 || $code2 -ne 2 ]]; then echo "FAIL: usage errors returned $code/$code2" >&2; failures=$((failures + 1)); else echo 'PASS: usage errors           fail'; fi
+if [[ $code -eq 0 || $code2 -ne 2 || $code3 -ne 2 ]]; then echo "FAIL: usage errors returned $code/$code2/$code3" >&2; failures=$((failures + 1)); else echo 'PASS: usage errors           fail'; fi
 
 if ((failures)); then echo "$failures case(s) failed" >&2; exit 1; fi
 echo 'server-release-gate: all cases passed'
