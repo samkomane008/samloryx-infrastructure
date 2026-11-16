@@ -42,6 +42,8 @@ See [CI mutex recovery](docs/CI_MUTEX_RECOVERY.md), [CI health watchdog](docs/CI
 
 Every product deploys by **gated server pull**: see [SERVER_PULL_CD.md](docs/SERVER_PULL_CD.md).
 
+CI capacity (one slot on the laptop today) and the options for a second machine: [CI_CAPACITY_OPTIONS.md](docs/CI_CAPACITY_OPTIONS.md).
+
 ## CI dependency reliability
 
 The reference implementation for persistent self-hosted pnpm storage, bounded
