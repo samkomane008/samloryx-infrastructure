@@ -7,7 +7,7 @@ if (( $# > 0 )); then MODE="$1"; fi
 [[ "$MODE" == --check || "$MODE" == --apply ]] || { echo "Usage: $0 [--check|--apply]" >&2; exit 2; }
 [[ "$(id -u)" == 0 ]] || { echo 'Run as root inside samloryx-ci guest' >&2; exit 1; }
 BASE=/var/backups/samloryx-ci-mutex
-REPOS="nabor personal-career samloryx-consultancy-platform samloryx-engineering-website samloryx-os samloryx-workspace"
+REPOS="nabor samloryx-consultancy-platform samloryx-engineering-website samloryx-os samloryx-workspace"
 [[ -d "$BASE" ]] || { echo 'No CI mutex backup directory found' >&2; exit 1; }
 # The oldest snapshot preserves the pre-mutex state, even after later reinstalls.
 backup="$(find "$BASE" -mindepth 1 -maxdepth 1 -type d | sort | head -n 1)"

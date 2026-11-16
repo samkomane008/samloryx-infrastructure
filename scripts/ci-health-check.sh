@@ -13,7 +13,7 @@ set -uo pipefail
 
 REPO="${CI_HEALTH_REPO:-samkomane008/samloryx-infrastructure}"
 VM="${CI_VM_NAME:-samloryx-ci}"
-REPOS="${CI_REPOS:-nabor personal-career samloryx-consultancy-platform samloryx-engineering-website samloryx-os samloryx-workspace}"
+REPOS="${CI_REPOS:-nabor samloryx-consultancy-platform samloryx-engineering-website samloryx-os samloryx-workspace}"
 QUEUE_MAX_MIN="${CI_QUEUE_MAX_MIN:-30}"
 # GitHub keeps some 11 Nov 2026 runs in a limbo state that it refuses to cancel
 # ("has not been queued yet", HTTP 409) or force-cancel. They never reach a

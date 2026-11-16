@@ -7,7 +7,7 @@
 set -uo pipefail
 
 VM="${CI_VM_NAME:-samloryx-ci}"
-REPOS="${CI_REPOS:-nabor personal-career samloryx-consultancy-platform samloryx-engineering-website samloryx-os samloryx-workspace}"
+REPOS="${CI_REPOS:-nabor samloryx-consultancy-platform samloryx-engineering-website samloryx-os samloryx-workspace}"
 command -v multipass >/dev/null || { echo "multipass not found" >&2; exit 2; }
 
 echo "=== VM information ==="

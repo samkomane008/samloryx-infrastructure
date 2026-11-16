@@ -43,7 +43,6 @@ chmod +x "$DIR/bin/multipass" "$DIR/bin/gh"
 export PATH="$DIR/bin:$PATH"
 
 healthy_matrix='nabor active enabled
-personal-career active enabled
 samloryx-consultancy-platform active enabled
 samloryx-engineering-website active enabled
 samloryx-os active enabled

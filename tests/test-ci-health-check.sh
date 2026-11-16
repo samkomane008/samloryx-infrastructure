@@ -50,13 +50,11 @@ export MOCK_STATE="$DIR/state"
 export CI_HEALTH_STATE="$DIR/state/h"
 
 listeners_all='nabor active enabled
-personal-career active enabled
 samloryx-consultancy-platform active enabled
 samloryx-engineering-website active enabled
 samloryx-os active enabled
 samloryx-workspace active enabled'
 runners_all='samloryx-ci-nabor-ci online
-samloryx-ci-personal-career-ci online
 samloryx-ci-samloryx-consultancy-platform-ci online
 samloryx-ci-samloryx-engineering-website-ci online
 samloryx-ci-samloryx-os-ci online
