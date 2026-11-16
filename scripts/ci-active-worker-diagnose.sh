@@ -30,7 +30,7 @@ GUEST
 if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
   echo
   echo '=== GitHub running jobs (up to 30 recent workflow runs per repo) ==='
-  for repo in nabor samloryx-os samloryx-consultancy-platform personal-career samloryx-engineering-website samloryx-workspace; do
+  for repo in nabor samloryx-os samloryx-consultancy-platform samloryx-engineering-website samloryx-workspace; do
     printf '%s: ' "$repo"
     gh run list --repo "samkomane008/$repo" --limit 30 \
       --json databaseId,name,status \

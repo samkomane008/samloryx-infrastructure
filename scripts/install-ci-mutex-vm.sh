@@ -11,7 +11,7 @@ TARGET="/opt/samloryx-ci-tools/actions-runner-mutex"
 ROOT="/opt/samloryx-runners/ci"
 LOCK_DIR="/run/samloryx-ci-mutex"
 GROUP="samloryx-ci-mutex"
-REPOS="nabor personal-career samloryx-consultancy-platform samloryx-engineering-website samloryx-os samloryx-workspace"
+REPOS="nabor samloryx-consultancy-platform samloryx-engineering-website samloryx-os samloryx-workspace"
 exec 9>/run/lock/samloryx-ci-mutex-installer.lock
 flock -n 9 || { echo 'Mutex installation already in progress' >&2; exit 1; }
 workers() { ps -eo comm= | awk '$1=="Runner.Worker"{n++} END{print n+0}'; }
