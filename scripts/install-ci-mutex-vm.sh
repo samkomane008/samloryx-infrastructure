@@ -35,7 +35,9 @@ for name in $REPOS; do
   [[ "$inherited" != *ACTIONS_RUNNER_HOOK_JOB_STARTED* && "$inherited" != *ACTIONS_RUNNER_HOOK_JOB_COMPLETED* ]] || {
     echo "STOP: inherited hook for $name; review before applying" >&2; exit 1;
   }
-  printf '%-36s %s\n' "$name" "$(systemctl is-active "$unit" || true)"
+  printf '%-36s active=%-8s enabled=%s\n' "$name" \
+    "$(systemctl is-active "$unit" 2>/dev/null || true)" \
+    "$(systemctl is-enabled "$unit" 2>/dev/null || true)"
 done
 if [[ "$MODE" == --check ]]; then
   echo 'CHECK COMPLETE: no changes made. Apply only when the host is idle.'
@@ -115,15 +117,55 @@ p.write_text('\n'.join(result) + '\n')
 p.chmod(mode)
 PY
 done
+failed=0
 for name in $REPOS; do
   unit="actions.runner.samkomane008-$name.samloryx-ci-$name-ci.service"
   systemctl reset-failed "$unit" || true
-  systemctl start "$unit" || echo "WARNING: start failed for $name" >&2
+  if ! systemctl start "$unit"; then
+    echo "ERROR: start failed for $name" >&2
+    failed=1
+  fi
+done
+# Type=simple: 'start' returns before the runner can exit, so confirm a stable active state.
+deadline=$(( SECONDS + 30 ))
+while :; do
+  pending=0
+  down=0
+  for name in $REPOS; do
+    unit="actions.runner.samkomane008-$name.samloryx-ci-$name-ci.service"
+    state="$(systemctl is-active "$unit" 2>/dev/null || true)"
+    if [[ "$state" == failed ]]; then down=1
+    elif [[ "$state" != active ]]; then pending=1; fi
+  done
+  if (( down )); then break; fi
+  if (( pending == 0 )); then break; fi
+  if (( SECONDS >= deadline )); then break; fi
+  sleep 1
+done
+# The 15 Nov reboot left the Nabor listener offline for hours because its unit was
+# never enabled: `start` alone does not survive a reboot. Enable every listener so a
+# host restart cannot silently drop a repository's only runner.
+for name in $REPOS; do
+  unit="actions.runner.samkomane008-$name.samloryx-ci-$name-ci.service"
+  systemctl enable "$unit" >/dev/null 2>&1 || { echo "ERROR: enable failed for $name" >&2; failed=1; }
 done
 echo '=== Runner services after installation ==='
 for name in $REPOS; do
   unit="actions.runner.samkomane008-$name.samloryx-ci-$name-ci.service"
-  printf '%-36s %s\n' "$name" "$(systemctl is-active "$unit" || true)"
+  state="$(systemctl is-active "$unit" 2>/dev/null || true)"
+  enabled="$(systemctl is-enabled "$unit" 2>/dev/null || true)"
+  [[ "$state" == active ]] || failed=1
+  case "$enabled" in
+    enabled|enabled-runtime|alias) ;;
+    *) failed=1 ;;
+  esac
+  printf '%-36s active=%-8s enabled=%s\n' "$name" "${state:-unknown}" "${enabled:-unknown}"
 done
+if (( failed )); then
+  echo 'STOP: Runner activation failed. Hooks installed, but not every runner is running and enabled.' >&2
+  echo 'Inspect: systemctl status <unit>; journalctl -u <unit> -n 50' >&2
+  echo 'Roll back: bash scripts/rollback-ci-mutex.sh --check (apply only when idle)' >&2
+  exit 7
+fi
 echo 'Host-wide mutex hooks installed. Prove serialization with two cross-repository canary jobs.'
 echo 'Root-only .env backups: /var/backups/samloryx-ci-mutex/'

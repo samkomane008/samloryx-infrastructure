@@ -1,0 +1,47 @@
+# Copy this file to .github/workflows/ci-canary.yml in a repository that has a
+# self-hosted runner. Replace <REPO>_CI_RUNNERS with that repository's variable
+# name (or the literal label list) and keep the job secret-free on purpose: the
+# canary must be safe to run at any time, including during an incident.
+#
+# It exists to prove three things in under a minute, without Docker, Maven or a
+# checkout of untrusted code:
+#   1. the listener is online and picks up work;
+#   2. the job label in the repository variable matches a real runner;
+#   3. the shared one-slot mutex lets exactly one job run at a time.
+#
+# A scheduled canary that stays queued is itself the alert: the CI watchdog
+# reports any run queued for more than 30 minutes.
+name: ci-canary
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Monday 04:17 UTC, before the working day, so a weekend outage is known
+    # before someone waits for a build.
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-canary-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: runner canary (secret-free)
+    runs-on: ${{ fromJSON(vars.<REPO>_CI_RUNNERS || '["self-hosted","Linux","X64","<label>"]') }}
+    # The shared mutex may hold this job behind another repository's build
+    # (JOB_LOCK_MAX_WAIT_SECS is 45 minutes), so the timeout must outlast a
+    # legitimate wait. Latency is the watchdog's job: it alerts above 30 min.
+    timeout-minutes: 50
+    steps:
+      - name: Describe the runner without exposing anything
+        run: |
+          set -euo pipefail
+          echo "runner=${RUNNER_NAME:-unknown} os=${RUNNER_OS:-unknown} arch=${RUNNER_ARCH:-unknown}"
+          uname -a
+          echo "cpus=$(nproc)"
+          awk '/^MemAvailable/ {printf "mem_available_mib=%d\n", $2/1024}' /proc/meminfo
+          df -h --output=avail / | tail -1 | awk '{print "disk_avail_kb="$1}'
+          echo "canary-ok"
