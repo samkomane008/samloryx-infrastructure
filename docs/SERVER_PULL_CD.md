@@ -61,7 +61,7 @@ Required checks per product:
 | Product | Workflows | Jobs | Sonar |
 |---|---|---|---|
 | `samloryx-os` | `ci-gate.yml`, `security-scan.yml` (+ `sonarcloud.yml` when `apps/platform/` changed) | `platform-build`, `web-build`, `marketing-build`, `mobile-typecheck`, `semgrep (the code itself)`, `osv (known vulnerable dependencies)`, `gitleaks (credentials in the history)` | Job `scan` with quality-gate wait, when `apps/platform/` changed (in `verify-release-checks.sh`) |
-| `samloryx-consultancy-platform` | `ci-gate.yml` | `backend-build`, `frontend-build` | Inside `backend-build`: on a main push the job fails unless the CI scan ran and the quality gate passed |
+| `samloryx-consultancy-platform` | `ci-gate.yml` | `backend-build`, `frontend-build` | **Not required yet** (Samuel, 16 Nov 2026, temporary): the repo still uses Automatic Analysis. How to restore it is in that repo's `deploy/hetzner/README.md` |
 | `nabor` | `quality.yml`, `sonarcloud.yml` | `Format, lint, typecheck, test, build and OSV`, `scan` | Job `scan`, once it waits for the quality gate |
 
 ## One-time owner setup per product
@@ -105,7 +105,7 @@ SHA until `main` moves.
 | Product | CI | Gate in repo | Gate on server | Token | Switch |
 |---|---|---|---|---|---|
 | `samloryx-os` | Self-hosted | Yes (`#402`), moving to the jobs API | **No**: the live checkout `c8ec41b` predates it | Installed, verified | `AUTO_DEPLOY=off`, cron removed 15 Nov |
-| `samloryx-consultancy-platform` | Self-hosted | Yes (`deploy/hetzner/`, #99) | **Yes**, installed 16 Nov from `3c6c7b9b`; update to the jobs-API gate pending | Installed, verified | `AUTO_DEPLOY=on` |
+| `samloryx-consultancy-platform` | Self-hosted | Yes (`deploy/hetzner/`, #99, #100) | **Yes**, jobs-API gate installed 16 Nov from `9ef4f7d6`; it then deployed `9ef4f7d` by itself once `ci-gate` passed on main | Installed, verified | `AUTO_DEPLOY=on` |
 | `nabor` | Self-hosted, queue-bound | `scripts/release-eligible.sh` (owner-run) | No | Not created | Off by decision |
 
 SamloryxOS `main` (`1b61c0ef`) fails the SonarCloud quality gate (52% coverage on new code, 80%
