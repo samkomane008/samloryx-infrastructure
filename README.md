@@ -40,6 +40,8 @@ See [CI mutex recovery](docs/CI_MUTEX_RECOVERY.md), [CI health watchdog](docs/CI
 [architecture](docs/ARCHITECTURE.md), [rollout](docs/ROLLOUT.md), and
 [open-source tool choices](docs/TOOLS.md).
 
+Every product deploys by **gated server pull**: see [SERVER_PULL_CD.md](docs/SERVER_PULL_CD.md).
+
 ## CI dependency reliability
 
 The reference implementation for persistent self-hosted pnpm storage, bounded

@@ -8,7 +8,7 @@ Legend: **VERIFIED** — proven by recorded evidence · **PARTIAL** — some evi
 remains · **OPEN** — not started or no evidence · **BLOCKED** — cannot proceed without an owner
 decision or a paid feature.
 
-Last verified: **15 November 2026**.
+Last verified: **16 November 2026** (CD rows); **15 November 2026** (others).
 
 ## Stage 0 — Baseline
 
@@ -42,7 +42,7 @@ Last verified: **15 November 2026**.
 
 | Requirement | Status | Evidence | Remaining work |
 |---|---|---|---|
-| Continuous deployment from `main` | PARTIAL | **Samloryx: VERIFIED 14 Nov 20:16Z.** Server-side pull deploy (no production key on the PR runner) as a five-minute cron; `a79ddb9f` deployed with the backup guard, 14/14 smoke checks and public release match. **Nabor: OPEN** — guarded preview pipeline exists but stays default-off because no dedicated always-on builder exists | Nabor needs an isolated builder host or runner |
+| Continuous deployment from `main` | PARTIAL | **16 Nov:** standard set to gated server pull ([SERVER_PULL_CD.md](SERVER_PULL_CD.md)). Read-only server check: the Samloryx `samloryx-autodeploy` cron was removed on 15 Nov 09:39Z and `AUTO_DEPLOY=off`, so production stays on `c8ec41b` while `main` `1b61c0ef` fails the SonarCloud gate; Consultancy's Hetzner cron is live but unguarded (deployed `7aa56a9`, which the gate rates eligible). Earlier: **Samloryx: VERIFIED 14 Nov 20:16Z.** Server-side pull deploy (no production key on the PR runner) as a five-minute cron; `a79ddb9f` deployed with the backup guard, 14/14 smoke checks and public release match. **Nabor: OPEN** — guarded preview pipeline exists but stays default-off because no dedicated always-on builder exists | Nabor needs an isolated builder host or runner |
 | Deployment identity separated from the PR runner | PARTIAL | Samloryx deploys by the host pulling `main` with its own SSH identity, so no production key is installed on the CI VM; Nabor's deploy key would still need a builder identity | Nabor builder identity; keep production keys off PR runners |
 | Deployment artifacts pinned | PARTIAL | Local Nabor preview images carry commit-SHA tags (`cfb39cf`, `c8e23ec`); registry digest pinning was not verified | Pin by digest before any production promotion |
 | Smoke test | PARTIAL | `deploy/smoke.sh` exists; production web, api and app returned 200 on 14 Nov | Run smoke as a recorded release step, not by hand only |

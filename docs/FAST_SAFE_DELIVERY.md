@@ -15,6 +15,8 @@ Every production or preview deployment must identify an immutable, full 40-chara
 7. Only one release authority may be on at a time: server cron **or** isolated GitHub CD, never both. No `workflow_dispatch` bypass.
 8. Credentials never enter PR-capable CI, public docs, logs, committed `.env` files or local development runner snapshots.
 
+**Delivery model (Samuel, 16 Nov 2026): gated server pull for every product.** The production host's cron deploys only a SHA that `scripts/server-release-gate.sh` (or the product's reviewed equivalent) declares eligible; GitHub deploy workflows stay off. Setup, token and status: [SERVER_PULL_CD.md](SERVER_PULL_CD.md).
+
 `scripts/release-eligible.sh` is the read-only common contract. Treat it as a **source template**, not something to curl and execute from an unpinned `main`. Copy to a product repo via code-reviewed PR, add its offline regression suite, and require the product's actual named CI jobs. A passing eligibility check does **not** authorize access to a server; all local server checks still apply.
 
 ## Fast parallel feature workflow
@@ -48,9 +50,9 @@ small isolated feature branches (Samloryx OS / Nabor / Consultancy / Engineering
 
 | Repository | Immediate policy | Release boundary |
 |---|---|---|
-| `samloryx-os` | Existing exact-head full Java/web/mobile/security gates; draft #399 local merge gate; draft #402 cron release gate | Live five-minute poller must be disabled before guarded-cutover; do not merge drafts on incomplete checks |
-| `nabor` | Full quality+OSV, Sonar and browser acceptance; existing preview workflow checks exact SHA | Preview default OFF and separate trusted `nabor-deploy` required; store launch is independent |
-| `samloryx-consultancy-platform` | Backend+frontend CI + security/Sonar; legacy Lightsail auto-poller needs fail-closed exact-SHA gate | Disable cron before trusted GitHub-CD cutover; no unverified main deployment |
+| `samloryx-os` | Exact-head full Java/web/mobile/security gates; #399 merge guard and #402 cron release gate merged | Unguarded poller removed 15 Nov; gated cron returns once a fully green main (including Sonar) is bootstrapped with the read-only token |
+| `nabor` | Full quality+OSV, Sonar and browser acceptance | Gated server-pull preview deploy, switch default OFF by owner decision; store launch is independent |
+| `samloryx-consultancy-platform` | Backend+frontend CI + Sonar on the self-hosted runner | The Hetzner five-minute cron (not Lightsail) stays the authority and gains the server release gate; GitHub CD stays off |
 | `samloryx-engineering-website` | Web build and Sonar; existing atomic server release rollback | Cloudflare CD must check current exact SHA and security gate; publishing content approval remains separate |
 | `personal-career` | Synthetic tests only on untrusted CI; no personal data on scanners | No automatic job submissions or private-data exports via CI |
 | `samloryx-workspace` | Secret-free validation; restrict CRM ingestion to reviewed `main` inputs | CRM ingest token is production-only, not available on PR CI |
