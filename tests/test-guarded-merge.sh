@@ -24,14 +24,14 @@ if [[ "$str" == *'/check-runs?'* ]]; then
   python3 - <<'PY'
 import os,json
 case=os.getenv('TEST_CASE','happy_nabor')
-base=['Format, lint, typecheck, test, build and OSV','scan','SonarCloud Code Analysis'] if 'nabor' in case or case=='draft' else ['platform-build','web-build','marketing-build','mobile-typecheck','semgrep (the code itself)','osv (known vulnerable dependencies)','gitleaks (credentials in the history)']
+base=['Format, lint, typecheck, test, build and OSV'] if 'nabor' in case or case=='draft' else ['platform-build','web-build','marketing-build','mobile-typecheck','semgrep (the code itself)','osv (known vulnerable dependencies)','gitleaks (credentials in the history)']
 if 'os' in case and not case.endswith('no_sonar'):
     base+=['scan','SonarCloud Code Analysis']
-if case == 'missing_nabor': base.remove('SonarCloud Code Analysis')
+if case == 'missing_nabor': base.remove('Format, lint, typecheck, test, build and OSV')
 if case == 'missing_os_sonar': base.remove('SonarCloud Code Analysis')
 checks=[{'head_sha':'b'*40,'name':x,'status':'completed','conclusion':'success'} for x in base]
 if case=='pending_nabor':
-    checks[1]['status']='in_progress';checks[1]['conclusion']=None
+    checks[-1]['status']='in_progress';checks[-1]['conclusion']=None
 print(json.dumps({'total_count':len(checks),'check_runs':checks}))
 PY
   exit 0
