@@ -52,10 +52,11 @@ verify_pr() {
 # aggregate "green" label. Sonar is path-scoped on Samloryx OS.
 required=()
 if [[ "$repo" == 'samkomane008/nabor' ]]; then
+  # Samuel, 19 Nov 2026 (temporary): SonarCloud runs on Nabor's main only, not on PRs, to stop each
+  # PR queueing twice for the single CI slot (measured: 7 min quality + 2 min scan, 31 + 81 min
+  # waiting). Restore 'scan' and 'SonarCloud Code Analysis' here when Sonar returns to PRs.
   required=(
     'Format, lint, typecheck, test, build and OSV'
-    'scan'
-    'SonarCloud Code Analysis'
   )
 else
   required=(
