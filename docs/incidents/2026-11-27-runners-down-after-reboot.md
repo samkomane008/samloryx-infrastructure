@@ -1,6 +1,6 @@
 # 2026-11-27 — Every runner listener down after a VM reboot
 
-Status: **recovered and fixed**. Public summary. Host addresses, tokens and full logs are left out.
+Status: **recovered, fixed and reboot-rehearsed**. Public summary. Host addresses, tokens and full logs are left out.
 
 ## What happened
 
@@ -25,4 +25,13 @@ Status: **recovered and fixed**. Public summary. Host addresses, tokens and full
 
 - `--apply` verified all five units as `Restart=always`, `enabled` and ordered after `time-sync.target`, with `systemd-time-wait-sync` enabled.
 - On the idle `samloryx-workspace` listener, a SIGTERM made the unit exit cleanly ("Deactivated successfully"). systemd scheduled a restart 60 s later, the unit was `Listening for Jobs`, and GitHub showed it `online`.
-- A full VM reboot has **not** been rehearsed yet: it would interrupt running CI jobs. Rehearse it in an idle window and check it with `runner-doctor.sh`.
+- **Full reboot rehearsed, 27 Nov 2026 10:28 SAST.** CI had been idle for three checks a minute apart. All five listeners were stopped so no job could start, there were still no workers, and then `multipass restart samloryx-ci` ran. Nothing was touched by hand afterwards:
+
+  | Time (SAST) | Event |
+  |---|---|
+  | 10:28:45 | Reboot started |
+  | 10:29:31 | `systemd-timesyncd`: initial clock synchronisation |
+  | 10:29:36–10:29:49 | All five listeners `Listening for Jobs`, each after the clock sync |
+  | 10:30:09 | All five `active` and `online` with GitHub; `runner-doctor.sh`: healthy |
+
+  About 80 seconds from reboot to a full CI fleet, with no `Failed to create a session` and no manual restart. The serial job lock also survived: `/run/samloryx-ci-mutex` is recreated at boot by `/etc/tmpfiles.d/samloryx-ci-mutex.conf`, and later jobs queued for its single slot as before.
